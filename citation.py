@@ -4,7 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from utils import load_citation, sgc_precompute, set_seed
+from utils import load_citation, sgc_precompute, set_seed, load_dblp_like_data
 from models import get_model
 from metrics import accuracy
 import pickle as pkl
@@ -25,7 +25,10 @@ if args.tuned:
 # setting random seeds
 set_seed(args.seed, args.cuda)
 
-adj, features, labels, idx_train, idx_val, idx_test = load_citation(args.dataset, args.normalization, args.cuda)
+# adj, features, labels, idx_train, idx_val, idx_test = load_citation(args.dataset, args.normalization, args.cuda) #forked
+# adj, features, labels, idx_train, idx_val, idx_test = load_dblp_like_data('imdb', args.normalization, args.cuda) #works
+# adj, features, labels, idx_train, idx_val, idx_test = load_dblp_like_data('dblp', args.normalization, args.cuda) #works
+adj, features, labels, idx_train, idx_val, idx_test = load_dblp_like_data('acm', args.normalization, args.cuda) #TODO not working
 
 model = get_model(args.model, features.size(1), labels.max().item()+1, args.hidden, args.dropout, args.cuda)
 

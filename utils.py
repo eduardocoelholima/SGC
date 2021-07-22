@@ -7,6 +7,115 @@ import networkx as nx
 from normalization import fetch_normalization, row_normalize
 from time import perf_counter
 
+
+
+def load_data(loadpath = './data/dblp/'):
+
+    import pickle as pkl
+
+    # path = './data/dblp/'
+
+    with open(loadpath+'labels.pkl', 'rb') as f:
+        labels = pkl.load(f)
+    with open(loadpath + 'node_features.pkl', 'rb') as f:
+        features = pkl.load(f)
+    with open(loadpath + 'edges.pkl', 'rb') as f:
+        edges = pkl.load(f)
+    return labels, features, edges
+
+
+
+def load_dblp_like_data(dataset="dblp", normalization="AugNormAdj", cuda=True):
+    """
+    Load DBLP Networks Datasets.
+    """
+
+    # dataset = 'dblp'
+    labels_onehot, features, edges = load_data(loadpath='./data/' + dataset + '/')
+
+    metaedges = [edges[1]@edges[0], edges[1]@edges[2]@edges[3]@edges[0]] if dataset == 'dblp' \
+        else [edges[0]@edges[1], edges[2]@edges[3]]
+    adj = metaedges[0]
+
+    # labels = [np.where(r == 1)[0][0] for r in labels_onehot]
+    # for i,l in enumerate(labels[0]):
+    train = np.array(labels_onehot[0])
+    val = np.array(labels_onehot[1])
+    test = np.array(labels_onehot[2])
+    idx_train = train[:, 0]
+    idx_val = val[:, 0]
+    idx_test = test[:, 0]
+    labels = np.zeros(features.shape[0])
+    labels[idx_train] = train[:,1]
+    labels[idx_val] = val[:, 1]
+    labels[idx_test] = test[:, 1]
+    # labels = np.vstack((train[:,1].reshape(-1,1), val[:,1].reshape(-1,1), test[:,1].reshape(-1,1)))
+
+
+    # names = ['x', 'y', 'tx', 'ty', 'allx', 'ally', 'graph']
+    # objects = []
+    # for i in range(len(names)):
+    #     with open("data/ind.{}.{}".format(dataset_str.lower(), names[i]), 'rb') as f:
+    #         if sys.version_info > (3, 0):
+    #             objects.append(pkl.load(f, encoding='latin1'))
+    #         else:
+    #             objects.append(pkl.load(f))
+
+    # x, y, tx, ty, allx, ally, graph = tuple(objects)
+    # test_idx_reorder = parse_index_file("data/ind.{}.test.index".format(dataset_str))
+    # test_idx_range = np.sort(test_idx_reorder)
+
+    # if dataset_str == 'citeseer':
+    #     # Fix citeseer dataset (there are some isolated nodes in the graph)
+    #     # Find isolated nodes, add them as zero-vecs into the right position
+    #     test_idx_range_full = range(min(test_idx_reorder), max(test_idx_reorder)+1)
+    #     tx_extended = sp.lil_matrix((len(test_idx_range_full), x.shape[1]))
+    #     tx_extended[test_idx_range-min(test_idx_range), :] = tx
+    #     tx = tx_extended
+    #     ty_extended = np.zeros((len(test_idx_range_full), y.shape[1]))
+    #     ty_extended[test_idx_range-min(test_idx_range), :] = ty
+    #     ty = ty_extended
+
+    # features = sp.vstack((allx, tx)).tolil()
+    # features[test_idx_reorder, :] = features[test_idx_range, :]
+    # adj = nx.adjacency_matrix(nx.from_dict_of_lists(graph))
+    # adj = adj + adj.T.multiply(adj.T > adj) - adj.multiply(adj.T > adj)
+    # labels = np.vstack((ally, ty))
+    # labels[test_idx_reorder, :] = labels[test_idx_range, :]
+    #
+    # idx_test = test_idx_range.tolist()
+    # idx_train = range(len(y))
+    # idx_val = range(len(y), len(y)+500)
+    #
+    features = torch.FloatTensor(features).float()
+    adj, features = preprocess_citation(adj, features, normalization)
+    features = torch.FloatTensor(features).float()
+
+    # porting to pytorch
+    # features = torch.FloatTensor(np.array(features.todense())).float()
+    # features = torch.FloatTensor(features).float()
+
+    # labels = torch.LongTensor(labels)
+    labels = torch.LongTensor(labels.reshape(-1))
+    # labels = torch.max(labels, dim=1)[1]
+    adj = sparse_mx_to_torch_sparse_tensor(adj).float()
+    idx_train = torch.LongTensor(idx_train)
+    idx_val = torch.LongTensor(idx_val)
+    idx_test = torch.LongTensor(idx_test)
+
+    if cuda:
+        features = features.cuda()
+        adj = adj.cuda()
+        labels = labels.cuda()
+        idx_train = idx_train.cuda()
+        idx_val = idx_val.cuda()
+        idx_test = idx_test.cuda()
+
+    # should adj be binary???? metaedges currently are not
+
+    return adj, features, labels, idx_train, idx_val, idx_test
+
+
 def parse_index_file(filename):
     """Parse index file."""
     index = []
